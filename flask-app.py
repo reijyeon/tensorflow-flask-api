@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 import werkzeug
 
 import os
@@ -11,10 +11,9 @@ from functions import preprocess_image, save_image, plot_image, downscale_image
 app = Flask(__name__)
 os.environ["TFHUB_DOWNLOAD_PROGRESS"] = "True"
 
-
-def esrgan(image):
+def esrgan(inputImage):
     SAVED_MODEL_PATH = "./model"
-    IMAGE_PATH = image
+    IMAGE_PATH = inputImage
     hr_image = preprocess_image(IMAGE_PATH)
 
     lr_image = downscale_image(tf.squeeze(hr_image))
@@ -37,10 +36,9 @@ def esrgan(image):
         tf.clip_by_value(hr_image, 0, 255), max_val=255)
     print("PSNR Achieved: %f" % psnr)
 
-
-def superResolution(image):
+def superResolution(inputImage, filename):
 # Declaring Constants
-    IMAGE_PATH = image
+    IMAGE_PATH = inputImage
     SAVED_MODEL_PATH = "./model"
 
     hr_image = preprocess_image(IMAGE_PATH)
@@ -55,43 +53,27 @@ def superResolution(image):
     fake_image = model(hr_image)
     fake_image = tf.squeeze(fake_image)
     print("Time Taken: %f" % (time.time() - start))
-
+    
     # Plotting Super Resolution Image
-    plot_image(tf.squeeze(fake_image), title="UpscalSuper_Resolution")
-    save_image(tf.squeeze(fake_image), filename="UpscalSuper_Resolution")
-
-
-
-    # plt.rcParams['figure.figsize'] = [15, 10]
-    # fig, axes = plt.subplots(1, 3)
-    # fig.tight_layout()
-    # plt.subplot(131)
-    # plot_image(tf.squeeze(hr_image), title="Original")
-    # plt.subplot(132)
-    # fig.tight_layout()
-    # plot_image(tf.squeeze(lr_image), "x4 Bicubic")
-    # plt.subplot(133)
-    # fig.tight_layout()
-    # plot_image(tf.squeeze(fake_image), "Super Resolution")
-    # plt.savefig("ESRGAN_DIV2K.jpg", bbox_inches="tight")
-    # print("PSNR: %f" % psnr)
-
-    # Plotting Super Resolution Image
-
+    plot_image(tf.squeeze(fake_image), title="Upscaled_%s" % filename)
+    save_image(tf.squeeze(fake_image), filename="Upscaled_%s" % filename)
 
 @app.route('/upload', methods=['POST'])
 def updload():
     if(request.method == 'POST'):
         imagefile = request.files['image']
-        filename = werkzeug.utils.secure_filename("input.jpg")
-        imagefile.save("./uploadimages/" + filename)
+        filename = werkzeug.utils.secure_filename(imagefile.filename)
+        imagefile.save("./uploadimages/" + filename+".jpg")
 
-        image = "./uploadimages/input.jpg"
-        esrgan(image)
-        superResolution(image)
+        inputImage = "./uploadimages/"+filename+".jpg"
+
+        esrgan(inputImage)
+        superResolution(inputImage,filename)
+
+        outputImage = "Upscaled_%s" % filename+".jpg"
+        
         return jsonify({
-            "message": "image uploaded succesfuly"
-
+            "result": outputImage
         })
         
 @app.route('/download/<fname>', methods=['GET'])
@@ -102,24 +84,3 @@ def download(fname):
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port="8080")
-
-
-# IMAGE_PATH = "original.png"
-# SAVED_MODEL_PATH = "./model"
-
-# hr_image = preprocess_image(IMAGE_PATH)
-
-# # Plotting Original Resolution image
-# plot_image(tf.squeeze(hr_image), title="Original Image")
-# save_image(tf.squeeze(hr_image), filename="Original Image")
-
-# model = hub.load(SAVED_MODEL_PATH)
-
-# start = time.time()
-# fake_image = model(hr_image)
-# fake_image = tf.squeeze(fake_image)
-# print("Time Taken: %f" % (time.time() - start))
-
-# # Plotting Super Resolution Image
-# plot_image(tf.squeeze(fake_image), title="Super Resolution")
-# save_image(tf.squeeze(fake_image), filename="Super Resolution")
